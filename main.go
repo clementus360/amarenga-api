@@ -9,15 +9,23 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
-	"github.com/joho/godotenv"
 )
 
 func main() {
+
 	router := mux.NewRouter()
+
+	cors := handlers.CORS(
+		handlers.AllowedOrigins([]string{"*"}), // Adjust this to your needs
+		handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
+		handlers.AllowedHeaders([]string{"Content-Type", "Authorization"}),
+	)
+
 	router.HandleFunc("/generate-jwt", handleJwt).Methods("POST")
 
-	http.ListenAndServe(":8080", router)
+	http.ListenAndServe(":8080", cors(router))
 }
 
 func handleJwt(w http.ResponseWriter, r *http.Request) {
@@ -37,11 +45,6 @@ func handleJwt(w http.ResponseWriter, r *http.Request) {
 }
 
 func generateJwt(userId string, sessionName string, roleType string) string {
-
-	err := godotenv.Load() // Load .env file
-	if err != nil {
-		log.Fatalf("Error loading .env file")
-	}
 
 	zoomAppKey := os.Getenv("ZOOM_APP_KEY")
 	zoomAppSecret := os.Getenv("ZOOM_APP_SECRET")
