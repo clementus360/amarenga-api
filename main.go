@@ -29,7 +29,6 @@ func main() {
 }
 
 func handleJwt(w http.ResponseWriter, r *http.Request) {
-
 	var req struct {
 		UserId      string `json:"userId"`
 		SessionName string `json:"sessionName"`
@@ -41,33 +40,36 @@ func handleJwt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := generateJwt(req.UserId, req.SessionName, req.RoleType)
+	if token == "" {
+		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
+		return
+	}
 	json.NewEncoder(w).Encode(map[string]string{"token": token})
 }
 
 func generateJwt(userId string, sessionName string, roleType string) string {
-
-	zoomAppKey := os.Getenv("ZOOM_APP_KEY")
-	zoomAppSecret := os.Getenv("ZOOM_APP_SECRET")
+	appKey := os.Getenv("ZOOM_APP_KEY")
+	appSecret := os.Getenv("ZOOM_APP_SECRET")
 
 	role, err := strconv.Atoi(roleType)
 	if err != nil {
 		log.Fatalf("Error converting roleType to integer: %v", err)
-		return "" // or handle the error differently depending on your error handling strategy
+		return ""
 	}
 
 	claims := jwt.MapClaims{
-		"app_key":                zoomAppKey,
+		"appKey":                 appKey,
 		"version":                1,
 		"user_identity":          userId,
 		"iat":                    time.Now().Unix(),
 		"exp":                    time.Now().Add(23 * time.Hour).Unix(),
 		"tpc":                    sessionName,
-		"role_type":              role,
+		"role":                   role,
 		"cloud_recording_option": 1,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signedToken, err := token.SignedString([]byte(zoomAppSecret))
+	signedToken, err := token.SignedString([]byte(appSecret))
 	if err != nil {
 		log.Fatalf("Error in generating token: %v", err)
 		return ""
