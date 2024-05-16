@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -51,9 +50,6 @@ func handleJwt(w http.ResponseWriter, r *http.Request) {
 func generateJwt(userId string, sessionName string, roleType string) string {
 	appKey := os.Getenv("ZOOM_APP_KEY")
 	appSecret := os.Getenv("ZOOM_APP_SECRET")
-
-	fmt.Println(appKey)
-	fmt.Println(appSecret)
 
 	role, err := strconv.Atoi(roleType)
 	if err != nil {
