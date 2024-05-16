@@ -62,7 +62,7 @@ func generateJwt(userId string, sessionName string, roleType string) string {
 	}
 
 	claims := jwt.MapClaims{
-		"app_Key":                appKey,
+		"app_key":                appKey,
 		"version":                1,
 		"user_identity":          userId,
 		"iat":                    time.Now().Unix(),
