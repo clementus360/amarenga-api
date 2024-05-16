@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -51,6 +52,9 @@ func generateJwt(userId string, sessionName string, roleType string) string {
 	appKey := os.Getenv("ZOOM_APP_KEY")
 	appSecret := os.Getenv("ZOOM_APP_SECRET")
 
+	fmt.Println(appKey)
+	fmt.Println(appSecret)
+
 	role, err := strconv.Atoi(roleType)
 	if err != nil {
 		log.Fatalf("Error converting roleType to integer: %v", err)
@@ -58,7 +62,7 @@ func generateJwt(userId string, sessionName string, roleType string) string {
 	}
 
 	claims := jwt.MapClaims{
-		"appKey":                 appKey,
+		"app_Key":                appKey,
 		"version":                1,
 		"user_identity":          userId,
 		"iat":                    time.Now().Unix(),
