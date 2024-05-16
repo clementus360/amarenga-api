@@ -68,7 +68,7 @@ func generateJwt(userId string, sessionName string, roleType string) string {
 		"iat":                    time.Now().Unix(),
 		"exp":                    time.Now().Add(23 * time.Hour).Unix(),
 		"tpc":                    sessionName,
-		"role":                   role,
+		"role_type":              role,
 		"cloud_recording_option": 1,
 	}
 
