@@ -1,6 +1,9 @@
 package main
 
 import (
+	"context"
+	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,10 +12,21 @@ import (
 	"strconv"
 	"time"
 
+	"cloud.google.com/go/firestore"
+	firebase "firebase.google.com/go"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/robfig/cron/v3"
+	"google.golang.org/api/option"
 )
+
+type NotificationPayload struct {
+	UserId           string `json:"userId"`
+	UserToken        string `json:"userToken"`
+	SessionTimestamp string `json:"sessionTimestamp"` // ISO 8601 format
+	SessionID        string `json:"sessionId"`
+}
 
 func main() {
 
@@ -24,7 +38,40 @@ func main() {
 		handlers.AllowedHeaders([]string{"Content-Type", "Authorization"}),
 	)
 
+	c := cron.New(cron.WithLocation(time.UTC))
+	db, err := InitializeDb()
+	if err != nil {
+		log.Fatalf("Database initialization error: %v\n", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	firebaseConfigBase64 := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
+	if firebaseConfigBase64 == "" {
+		log.Fatalf("GOOGLE_APPLICATION_CREDENTIALS environment variable not set")
+	}
+
+	firebaseConfigJson, err := base64.StdEncoding.DecodeString(firebaseConfigBase64)
+	if err != nil {
+		log.Fatalf("Error decoding Firebase config: %v", err)
+	}
+
+	sa := option.WithCredentialsJSON(firebaseConfigJson)
+
+	app, err := firebase.NewApp(ctx, nil, sa)
+	if err != nil {
+		log.Fatalf("Firebase initialization error: %v\n", err)
+	}
+
+	client, err := app.Firestore(ctx)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer client.Close()
+
 	router.HandleFunc("/generate-jwt", handleJwt).Methods("POST")
+	router.HandleFunc("/schedule-notification", handleNotification(db, c, ctx, client)).Methods("POST")
 
 	http.ListenAndServe(":8080", cors(router))
 }
@@ -52,9 +99,6 @@ func generateJwt(userId string, sessionName string, roleType string) string {
 	appKey := os.Getenv("ZOOM_APP_KEY")
 	appSecret := os.Getenv("ZOOM_APP_SECRET")
 
-	fmt.Println(appKey)
-	fmt.Println(appSecret)
-
 	role, err := strconv.Atoi(roleType)
 	if err != nil {
 		log.Fatalf("Error converting roleType to integer: %v", err)
@@ -80,4 +124,76 @@ func generateJwt(userId string, sessionName string, roleType string) string {
 	}
 
 	return signedToken
+}
+
+func handleNotification(db *sql.DB, c *cron.Cron, ctx context.Context, client *firestore.Client) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		var payload NotificationPayload
+
+		err := json.NewDecoder(r.Body).Decode(&payload)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		sessionDate, err := time.Parse(time.RFC3339, payload.SessionTimestamp)
+		if err != nil {
+			http.Error(w, "Invalid session time format", http.StatusBadRequest)
+			return
+		}
+
+		reminderDate := sessionDate.Add(-30 * time.Minute)
+
+		// Schedule a notification 30 minutes before the session
+		reminderDateCron := createCronExpression(reminderDate)
+		fmt.Println(reminderDateCron)
+		reminderJobID, err := c.AddFunc(reminderDateCron, func() {
+			fmt.Println("send")
+			err := SendNotification(payload.UserId, payload.UserToken, "Session Reminder", "Your session starts in 30 minutes.", payload.SessionID, ctx, client)
+			if err != nil {
+				log.Printf("Error sending reminder notification: %v", err)
+			}
+		})
+		if err != nil {
+			fmt.Println(err)
+			http.Error(w, "Failed to schedule reminder notification", http.StatusInternalServerError)
+			return
+		}
+
+		// Schedule a notification at the time of the session
+		sessionDateCron := createCronExpression(sessionDate)
+		fmt.Println(sessionDateCron)
+		startJobID, err := c.AddFunc(sessionDateCron, func() {
+			fmt.Println("send")
+			err := SendNotification(payload.UserId, payload.UserToken, "Session Starting", "Your session is starting now.", payload.SessionID, ctx, client)
+			if err != nil {
+				log.Printf("Error sending start notification: %v", err)
+			}
+		})
+		if err != nil {
+			http.Error(w, "Failed to schedule session start notification", http.StatusInternalServerError)
+			return
+		}
+
+		// Store the jobs in SQLite
+		insertQuery := `
+	INSERT INTO jobs (sessionId, reminderJobID, startJobID, userToken, sessionTimestamp, reminderTimestamp)
+	VALUES (?, ?, ?, ?, ?, ?)
+	`
+		_, err = db.Exec(insertQuery, payload.SessionID, reminderJobID, startJobID, payload.UserToken, sessionDate.Format(time.RFC3339), reminderDate.Format(time.RFC3339))
+		if err != nil {
+			log.Printf("Error storing job in SQLite: %v", err)
+			http.Error(w, "Failed to store job in database", http.StatusInternalServerError)
+			return
+		}
+
+		c.Start()
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "Notifications scheduled"})
+	}
+}
+
+func createCronExpression(t time.Time) string {
+	return fmt.Sprintf("%d %d %d %d *", t.Minute(), t.Hour(), t.Day(), t.Month())
 }
