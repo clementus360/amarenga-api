@@ -13,10 +13,11 @@ import (
 )
 
 type Notification struct {
-	SessionID         string    `firestore:"sessionId"`
-	InterpreterToken  string    `firestore:"interpreterToken"`
-	SessionTimestamp  time.Time `firestore:"sessionTimestamp"`
-	ReminderTimestamp time.Time `firestore:"reminderTimestamp"`
+	SessionID        string    `firestore:"sessionId"`
+	UserToken        string    `firestore:"interpreterToken"`
+	Title            string    `firestore:"title"`
+	Body             string    `firestore:"body"`
+	SessionTimestamp time.Time `firestore:"sessionTimestamp"`
 }
 
 func addNotificationToUser(client *firestore.Client, ctx context.Context, userId string, notification Notification) error {
@@ -73,10 +74,11 @@ func SendNotification(userId string, expoPushToken string, title string, content
 
 	// Example of writing data to Firestore
 	notification := Notification{
-		SessionID:         "session123",
-		InterpreterToken:  "interpreterToken123",
-		SessionTimestamp:  time.Now(),
-		ReminderTimestamp: time.Now().Add(30 * time.Minute),
+		SessionID:        sessionId,
+		UserToken:        expoPushToken,
+		Title:            title,
+		Body:             content,
+		SessionTimestamp: time.Now(),
 	}
 
 	err = addNotificationToUser(firestoreClient, ctx, userId, notification)

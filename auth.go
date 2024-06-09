@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -31,6 +32,11 @@ func GetAccessToken(ctx context.Context) (string, error) {
 	data, err := os.ReadFile("./firebaseConfig.json")
 	if err != nil {
 		return "", fmt.Errorf("error reading service account file: %v", err)
+	}
+
+	var serviceAccount ServiceAccount
+	if err := json.Unmarshal(data, &serviceAccount); err != nil {
+		return "", fmt.Errorf("error unmarshalling service account file: %v", err)
 	}
 
 	// Configure the JWT client

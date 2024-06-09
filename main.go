@@ -147,7 +147,6 @@ func handleNotification(db *sql.DB, c *cron.Cron, ctx context.Context, client *f
 
 		// Schedule a notification 30 minutes before the session
 		reminderDateCron := createCronExpression(reminderDate)
-		fmt.Println(reminderDateCron)
 		reminderJobID, err := c.AddFunc(reminderDateCron, func() {
 			fmt.Println("send")
 			err := SendNotification(payload.UserId, payload.UserToken, "Session Reminder", "Your session starts in 30 minutes.", payload.SessionID, ctx, client)
@@ -163,7 +162,6 @@ func handleNotification(db *sql.DB, c *cron.Cron, ctx context.Context, client *f
 
 		// Schedule a notification at the time of the session
 		sessionDateCron := createCronExpression(sessionDate)
-		fmt.Println(sessionDateCron)
 		startJobID, err := c.AddFunc(sessionDateCron, func() {
 			fmt.Println("send")
 			err := SendNotification(payload.UserId, payload.UserToken, "Session Starting", "Your session is starting now.", payload.SessionID, ctx, client)
