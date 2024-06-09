@@ -18,6 +18,7 @@ type Notification struct {
 	Title            string    `firestore:"title"`
 	Body             string    `firestore:"body"`
 	SessionTimestamp time.Time `firestore:"sessionTimestamp"`
+	Read             bool      `firestore:"read"`
 }
 
 func addNotificationToUser(client *firestore.Client, ctx context.Context, userId string, notification Notification) error {
@@ -79,6 +80,7 @@ func SendNotification(userId string, expoPushToken string, title string, content
 		Title:            title,
 		Body:             content,
 		SessionTimestamp: time.Now(),
+		Read:             false,
 	}
 
 	err = addNotificationToUser(firestoreClient, ctx, userId, notification)
